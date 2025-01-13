@@ -42,8 +42,8 @@ export class JestRunner {
   // public methods
   //
 
-  public async runTestsOnPath(path: string): Promise<void> {
-    const command = this.buildJestCommand(path);
+  public async runTestsOnPath(workspacePath: string, path: string): Promise<void> {
+    const command = this.buildJestCommand(workspacePath, path);
 
     this.previousCommand = command;
 
@@ -85,7 +85,7 @@ export class JestRunner {
 
     const testName = currentTestName || this.findCurrentTestName(editor);
     const resolvedTestName = updateTestNameIfUsingProperties(testName);
-    const command = this.buildJestCommand(filePath, resolvedTestName, finalOptions);
+    const command = this.buildJestCommand(this.getWorkspacePath(editor), filePath, resolvedTestName, finalOptions);
 
     this.previousCommand = command;
 
@@ -104,7 +104,7 @@ export class JestRunner {
     await editor.document.save();
 
     const filePath = editor.document.fileName;
-    const command = this.buildJestCommand(filePath, undefined, options);
+    const command = this.buildJestCommand(this.getWorkspacePath(editor), filePath, undefined, options);
 
     this.previousCommand = command;
 
@@ -132,8 +132,8 @@ export class JestRunner {
     await this.runExternalNativeTerminalCommand(this.commands);
   }
 
-  public async debugTestsOnPath(path: string): Promise<void> {
-    const debugConfig = this.getDebugConfig(path);
+  public async debugTestsOnPath(workspacePath: string, path: string): Promise<void> {
+    const debugConfig = this.getDebugConfig(workspacePath, path);
 
     await this.goToCwd();
     await this.executeDebugCommand({
@@ -155,7 +155,7 @@ export class JestRunner {
     const filePath = editor.document.fileName;
     const testName = currentTestName || this.findCurrentTestName(editor);
     const resolvedTestName = updateTestNameIfUsingProperties(testName);
-    const debugConfig = this.getDebugConfig(filePath, resolvedTestName);
+    const debugConfig = this.getDebugConfig(this.getWorkspacePath(editor), filePath, resolvedTestName);
 
     await this.goToCwd();
     await this.executeDebugCommand({
@@ -169,6 +169,11 @@ export class JestRunner {
   //
   // private methods
   //
+
+  private getWorkspacePath(editor: vscode.TextEditor): string {
+    const workspacePath = vscode.workspace.getWorkspaceFolder(editor.document.uri).uri.fsPath;
+    return workspacePath;
+  }
 
   private async executeDebugCommand(debugCommand: DebugCommand) {
     // prevent open of external terminal when debug command is executed
@@ -184,7 +189,7 @@ export class JestRunner {
     this.previousCommand = debugCommand;
   }
 
-  private getDebugConfig(filePath: string, currentTestName?: string): vscode.DebugConfiguration {
+  private getDebugConfig(workspacePath: string, filePath: string, currentTestName?: string): vscode.DebugConfiguration {
     const config: vscode.DebugConfiguration = {
       console: 'integratedTerminal',
       internalConsoleOptions: 'neverOpen',
@@ -203,7 +208,7 @@ export class JestRunner {
       config.program = `.yarn/releases/${this.config.getYarnPnpCommand}`;
     }
 
-    const standardArgs = this.buildJestArgs(filePath, currentTestName, false);
+    const standardArgs = this.buildJestArgs(workspacePath, filePath, currentTestName, false);
     pushMany(config.args, standardArgs);
     config.args.push('--runInBand');
 
@@ -225,12 +230,12 @@ export class JestRunner {
     return fullTestName ? escapeRegExp(fullTestName) : undefined;
   }
 
-  private buildJestCommand(filePath: string, testName?: string, options?: string[]): string {
-    const args = this.buildJestArgs(filePath, testName, true, options);
+  private buildJestCommand(workspacePath: string, filePath: string, testName?: string, options?: string[]): string {
+    const args = this.buildJestArgs(workspacePath, filePath, testName, true, options);
     return `${this.config.jestCommand} ${args.join(' ')}`;
   }
 
-  private buildJestArgs(filePath: string, testName: string, withQuotes: boolean, options: string[] = []): string[] {
+  private buildJestArgs(workspacePath: string, filePath: string, testName: string, withQuotes: boolean, options: string[] = []): string[] {
     const args: string[] = [];
     const quoter = withQuotes ? quote : (str) => str;
 
@@ -245,6 +250,12 @@ export class JestRunner {
     if (testName) {
       args.push('-t');
       args.push(quoter(escapeSingleQuotes(testName)));
+    }
+
+    // roots -> workspacePath
+    if (workspacePath) {
+      args.push('--roots');
+      args.push(quoter(escapeSingleQuotes(workspacePath)));
     }
 
     const setOptions = new Set(options);
