@@ -42,7 +42,12 @@ export class JestRunner {
   // public methods
   //
 
-  public async runTestsOnPath(workspacePath: string, path: string): Promise<void> {
+  public async runTestsOnPath(path: string): Promise<void> {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      return;
+    }
+    const workspacePath = this.getWorkspacePath(editor);
     const command = this.buildJestCommand(workspacePath, path);
 
     this.previousCommand = command;
@@ -132,7 +137,12 @@ export class JestRunner {
     await this.runExternalNativeTerminalCommand(this.commands);
   }
 
-  public async debugTestsOnPath(workspacePath: string, path: string): Promise<void> {
+  public async debugTestsOnPath(path: string): Promise<void> {
+    const editor = vscode.window.activeTextEditor;
+    if (!editor) {
+      return;
+    }
+    const workspacePath = this.getWorkspacePath(editor);
     const debugConfig = this.getDebugConfig(workspacePath, path);
 
     await this.goToCwd();
